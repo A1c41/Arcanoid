@@ -1,0 +1,332 @@
+#include "SaveSystem.h"
+#include "Ball.h"
+#include "Paddle.h"
+#include "Block.h"
+#include "StrongBlock.h"
+#include "GlassBlock.h"
+#include "IndestructibleBlock.h"
+#include <fstream>
+#include <cstdio>
+
+namespace Arcanoid {
+
+    GameMemento::GameMemento() : score(0), lives(3) {}
+
+    void GameMemento::saveState(int score_, int lives_,
+        const std::vector<std::unique_ptr<GameObject>>& blocks_,
+        const GameObject* ball_,
+        const GameObject* paddle_,
+        const std::vector<std::unique_ptr<Bonus>>& bonuses_,
+        const std::vector<std::pair<std::unique_ptr<IBonusEffect>, float>>& activeEffects_) {
+        score = score_;
+        lives = lives_;
+
+        blocks.clear();
+        for (const auto& block : blocks_) {
+            BlockState state;
+            state.x = block->getPosition().x;
+            state.y = block->getPosition().y;
+            state.isActive = true;
+            state.hitsRemaining = 0;
+            state.isGlass = false;
+            state.isIndestructible = false;
+            state.colorR = 255;
+            state.colorG = 255;
+            state.colorB = 255;
+
+            auto* blockPtr = dynamic_cast<Block*>(block.get());
+            if (blockPtr) {
+                state.isActive = blockPtr->isAlive();
+                sf::Color color = blockPtr->getColor();
+                state.colorR = color.r;
+                state.colorG = color.g;
+                state.colorB = color.b;
+            }
+
+            auto* strongBlock = dynamic_cast<StrongBlock*>(block.get());
+            if (strongBlock) {
+                state.hitsRemaining = strongBlock->getHitsRemaining();
+                sf::Color color = strongBlock->getColor();
+                state.colorR = color.r;
+                state.colorG = color.g;
+                state.colorB = color.b;
+            }
+
+            auto* glassBlock = dynamic_cast<GlassBlock*>(block.get());
+            if (glassBlock) {
+                state.isGlass = true;
+                state.isActive = glassBlock->isAlive();
+                sf::Color color = glassBlock->getColor();
+                state.colorR = color.r;
+                state.colorG = color.g;
+                state.colorB = color.b;
+            }
+
+            auto* indestructibleBlock = dynamic_cast<IndestructibleBlock*>(block.get());
+            if (indestructibleBlock) {
+                state.isIndestructible = true;
+                state.isActive = true;
+                sf::Color color = indestructibleBlock->getColor();
+                state.colorR = color.r;
+                state.colorG = color.g;
+                state.colorB = color.b;
+            }
+
+            blocks.push_back(state);
+        }
+
+        if (ball_) {
+            auto* ball = dynamic_cast<const Ball*>(ball_);
+            if (ball) {
+                ballState.x = ball->getPosition().x;
+                ballState.y = ball->getPosition().y;
+                ballState.vx = ball->getVelocity().x;
+                ballState.vy = ball->getVelocity().y;
+                ballState.speed = std::sqrt(ballState.vx * ballState.vx + ballState.vy * ballState.vy);
+            }
+        }
+
+        if (paddle_) {
+            paddleState.x = paddle_->getPosition().x;
+            paddleState.y = paddle_->getPosition().y;
+            paddleState.sizeX = paddle_->getSize().x;
+            paddleState.sizeY = paddle_->getSize().y;
+            auto* paddle = dynamic_cast<const Paddle*>(paddle_);
+            if (paddle) {
+                paddleState.speed = paddle->getSpeed();
+            }
+        }
+
+        bonuses.clear();
+        for (const auto& bonus : bonuses_) {
+            if (bonus->isAlive()) {
+                BonusState state;
+                state.x = bonus->getPosition().x;
+                state.y = bonus->getPosition().y;
+                state.type = static_cast<int>(bonus->getType());
+                state.isActive = true;
+                state.remainingTime = 5.0f;
+                bonuses.push_back(state);
+            }
+        }
+
+        activeEffects.clear();
+        for (const auto& effect : activeEffects_) {
+            ActiveEffectState state;
+            state.type = effect.first->getType();
+            state.elapsedTime = effect.second;
+            state.multiplier = 1.0f;
+
+            auto* sizeEffect = dynamic_cast<const PaddleSizeEffect*>(effect.first.get());
+            if (sizeEffect) {
+                state.multiplier = sizeEffect->getMultiplier();
+            }
+            auto* speedEffect = dynamic_cast<const PaddleSpeedEffect*>(effect.first.get());
+            if (speedEffect) {
+                state.multiplier = speedEffect->getMultiplier();
+            }
+
+            auto* fragileEffect = dynamic_cast<const FragileBlocksEffect*>(effect.first.get());
+            if (fragileEffect) {
+                const auto& affected = fragileEffect->getAffectedBlocks();
+                for (const auto& pair : affected) {
+                    for (size_t i = 0; i < blocks_.size(); ++i) {
+                        if (blocks_[i].get() == pair.first) {
+                            AffectedBlockInfo info;
+                            info.blockIndex = static_cast<int>(i);
+                            info.originalHits = pair.second;
+                            state.affectedBlocks.push_back(info);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            activeEffects.push_back(state);
+        }
+    }
+
+    int GameMemento::getScore() const { return score; }
+    int GameMemento::getLives() const { return lives; }
+    const std::vector<GameMemento::BlockState>& GameMemento::getBlocks() const { return blocks; }
+    const GameMemento::BallState& GameMemento::getBall() const { return ballState; }
+    const GameMemento::PaddleState& GameMemento::getPaddle() const { return paddleState; }
+    const std::vector<GameMemento::BonusState>& GameMemento::getBonuses() const { return bonuses; }
+    const std::vector<GameMemento::ActiveEffectState>& GameMemento::getActiveEffects() const { return activeEffects; }
+
+    SaveSystem::SaveSystem() {
+        saveFile = RESOURCES + "save.dat";
+        loadFromFile();
+    }
+
+    SaveSystem::~SaveSystem() {
+        if (save) {
+            saveToFile();
+        }
+    }
+
+    void SaveSystem::saveGame(int score, int lives,
+        const std::vector<std::unique_ptr<GameObject>>& blocks,
+        const GameObject* ball,
+        const GameObject* paddle,
+        const std::vector<std::unique_ptr<Bonus>>& bonuses,
+        const std::vector<std::pair<std::unique_ptr<IBonusEffect>, float>>& activeEffects) {
+        save = std::make_unique<GameMemento>();
+        save->saveState(score, lives, blocks, ball, paddle, bonuses, activeEffects);
+        saveToFile();
+    }
+
+    bool SaveSystem::loadGame() {
+        loadFromFile();
+        return save != nullptr;
+    }
+
+    const GameMemento* SaveSystem::getCurrentSave() const {
+        return save.get();
+    }
+
+    bool SaveSystem::hasSave() const {
+        return save != nullptr;
+    }
+
+    void SaveSystem::clearSave() {
+        save.reset();
+        std::remove(saveFile.c_str());
+    }
+
+    void SaveSystem::saveToFile() {
+        if (!save) return;
+
+        std::ofstream file(saveFile, std::ios::binary);
+        if (!file.is_open()) return;
+
+        int score = save->getScore();
+        int lives = save->getLives();
+        file.write(reinterpret_cast<const char*>(&score), sizeof(int));
+        file.write(reinterpret_cast<const char*>(&lives), sizeof(int));
+
+        GameMemento::BallState ballState = save->getBall();
+        file.write(reinterpret_cast<const char*>(&ballState), sizeof(GameMemento::BallState));
+
+        GameMemento::PaddleState paddleState = save->getPaddle();
+        file.write(reinterpret_cast<const char*>(&paddleState), sizeof(GameMemento::PaddleState));
+
+        std::vector<GameMemento::BlockState> blocks = save->getBlocks();
+        size_t blockCount = blocks.size();
+        file.write(reinterpret_cast<const char*>(&blockCount), sizeof(size_t));
+        for (const auto& block : blocks) {
+            file.write(reinterpret_cast<const char*>(&block), sizeof(GameMemento::BlockState));
+        }
+
+        std::vector<GameMemento::BonusState> bonuses = save->getBonuses();
+        size_t bonusCount = bonuses.size();
+        file.write(reinterpret_cast<const char*>(&bonusCount), sizeof(size_t));
+        for (const auto& bonus : bonuses) {
+            file.write(reinterpret_cast<const char*>(&bonus), sizeof(GameMemento::BonusState));
+        }
+
+        std::vector<GameMemento::ActiveEffectState> activeEffects = save->getActiveEffects();
+        size_t effectCount = activeEffects.size();
+        file.write(reinterpret_cast<const char*>(&effectCount), sizeof(size_t));
+        for (const auto& effect : activeEffects) {
+            int type = effect.type;
+            float elapsedTime = effect.elapsedTime;
+            float multiplier = effect.multiplier;
+            size_t affectedCount = effect.affectedBlocks.size();
+
+            file.write(reinterpret_cast<const char*>(&type), sizeof(int));
+            file.write(reinterpret_cast<const char*>(&elapsedTime), sizeof(float));
+            file.write(reinterpret_cast<const char*>(&multiplier), sizeof(float));
+            file.write(reinterpret_cast<const char*>(&affectedCount), sizeof(size_t));
+
+            for (const auto& info : effect.affectedBlocks) {
+                int blockIndex = info.blockIndex;
+                int originalHits = info.originalHits;
+                file.write(reinterpret_cast<const char*>(&blockIndex), sizeof(int));
+                file.write(reinterpret_cast<const char*>(&originalHits), sizeof(int));
+            }
+        }
+
+        file.close();
+    }
+
+    void SaveSystem::loadFromFile() {
+        std::ifstream file(saveFile, std::ios::binary);
+        if (!file.is_open()) return;
+
+        try {
+            save = std::make_unique<GameMemento>();
+
+            int score, lives;
+            file.read(reinterpret_cast<char*>(&score), sizeof(int));
+            file.read(reinterpret_cast<char*>(&lives), sizeof(int));
+            save->setScore(score);
+            save->setLives(lives);
+
+            GameMemento::BallState ballState;
+            file.read(reinterpret_cast<char*>(&ballState), sizeof(GameMemento::BallState));
+            save->setBall(ballState);
+
+            GameMemento::PaddleState paddleState;
+            file.read(reinterpret_cast<char*>(&paddleState), sizeof(GameMemento::PaddleState));
+            save->setPaddle(paddleState);
+
+            size_t blockCount;
+            file.read(reinterpret_cast<char*>(&blockCount), sizeof(size_t));
+            std::vector<GameMemento::BlockState> blocks;
+            for (size_t i = 0; i < blockCount; ++i) {
+                GameMemento::BlockState block;
+                file.read(reinterpret_cast<char*>(&block), sizeof(GameMemento::BlockState));
+                blocks.push_back(block);
+            }
+            save->setBlocks(blocks);
+
+            size_t bonusCount;
+            file.read(reinterpret_cast<char*>(&bonusCount), sizeof(size_t));
+            std::vector<GameMemento::BonusState> bonuses;
+            for (size_t i = 0; i < bonusCount; ++i) {
+                GameMemento::BonusState bonus;
+                file.read(reinterpret_cast<char*>(&bonus), sizeof(GameMemento::BonusState));
+                bonuses.push_back(bonus);
+            }
+            save->setBonuses(bonuses);
+
+            size_t effectCount;
+            file.read(reinterpret_cast<char*>(&effectCount), sizeof(size_t));
+            std::vector<GameMemento::ActiveEffectState> activeEffects;
+            for (size_t i = 0; i < effectCount; ++i) {
+                GameMemento::ActiveEffectState effect;
+                int type;
+                float elapsedTime;
+                float multiplier;
+                size_t affectedCount;
+
+                file.read(reinterpret_cast<char*>(&type), sizeof(int));
+                file.read(reinterpret_cast<char*>(&elapsedTime), sizeof(float));
+                file.read(reinterpret_cast<char*>(&multiplier), sizeof(float));
+                file.read(reinterpret_cast<char*>(&affectedCount), sizeof(size_t));
+
+                effect.type = type;
+                effect.elapsedTime = elapsedTime;
+                effect.multiplier = multiplier;
+
+                for (size_t j = 0; j < affectedCount; ++j) {
+                    GameMemento::AffectedBlockInfo info;
+                    file.read(reinterpret_cast<char*>(&info.blockIndex), sizeof(int));
+                    file.read(reinterpret_cast<char*>(&info.originalHits), sizeof(int));
+                    effect.affectedBlocks.push_back(info);
+                }
+
+                activeEffects.push_back(effect);
+            }
+            save->setActiveEffects(activeEffects);
+
+            file.close();
+        }
+        catch (...) {
+            save = nullptr;
+            file.close();
+        }
+    }
+
+}
