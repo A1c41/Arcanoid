@@ -1,3 +1,4 @@
+// Ball.h
 #pragma once
 #include "GameObject.h"
 #include "Constants.h"
@@ -8,6 +9,7 @@ namespace Arcanoid {
     private:
         sf::Vector2f velocity;
         float speed;
+        float baseSpeed;
         sf::Texture texture;
 
         void resetDirection();
@@ -29,6 +31,7 @@ namespace Arcanoid {
         void reflectX() { velocity.x = -velocity.x; }
         void reflectY() { velocity.y = -velocity.y; }
         float getSpeed() const { return speed; }
+        float getBaseSpeed() const { return baseSpeed; }
     };
 
 }

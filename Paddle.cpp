@@ -6,15 +6,18 @@ namespace Arcanoid {
         size = sf::Vector2f(baseWidth, baseHeight);
         position = sf::Vector2f(WINDOW_WIDTH / 2.0f - size.x / 2, WINDOW_HEIGHT - 50.0f);
 
-        sf::Image image;
-        image.create(static_cast<unsigned>(baseWidth), static_cast<unsigned>(baseHeight), sf::Color::White);
-        texture.loadFromImage(image);
-        sprite.setTexture(texture);
-        sprite.setPosition(position);
+        shape.setSize(size);
+        shape.setFillColor(sf::Color::White);
+        shape.setOutlineColor(sf::Color(200, 200, 200));
+        shape.setOutlineThickness(1.0f);
+        shape.setPosition(position);
     }
 
     void Paddle::setSize(const sf::Vector2f& newSize) {
+        if (newSize.x <= 0 || newSize.y <= 0) return;
+
         size = newSize;
+
         if (position.x + size.x > WINDOW_WIDTH) {
             position.x = WINDOW_WIDTH - size.x;
         }
@@ -22,11 +25,8 @@ namespace Arcanoid {
             position.x = 0;
         }
 
-        sf::Image image;
-        image.create(static_cast<unsigned>(size.x), static_cast<unsigned>(size.y), sf::Color::White);
-        texture.loadFromImage(image);
-        sprite.setTexture(texture);
-        sprite.setPosition(position);
+        shape.setSize(size);
+        shape.setPosition(position);
     }
 
     void Paddle::update(float dt) {
@@ -38,11 +38,11 @@ namespace Arcanoid {
             position.x += speed * dt;
             if (position.x + size.x > WINDOW_WIDTH) position.x = WINDOW_WIDTH - size.x;
         }
-        sprite.setPosition(position);
+        shape.setPosition(position);
     }
 
     void Paddle::draw(sf::RenderWindow& window) const {
-        window.draw(sprite);
+        window.draw(shape);
     }
 
     void Paddle::handleInput(const sf::Event& event) {
@@ -67,7 +67,7 @@ namespace Arcanoid {
     }
 
     sf::FloatRect Paddle::getBounds() const {
-        return sf::FloatRect(position, size);
+        return shape.getGlobalBounds();
     }
 
 }

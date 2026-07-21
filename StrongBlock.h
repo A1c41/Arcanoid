@@ -1,3 +1,4 @@
+// StrongBlock.h
 #pragma once
 #include "Block.h"
 #include "Constants.h"
@@ -21,6 +22,7 @@ namespace Arcanoid {
         void hit();
         bool isAlive() const override { return hitsRemaining > 0; }
         int getHitsRemaining() const { return hitsRemaining; }
+        int getMaxHits() const { return maxHits; }
         void setHitsRemaining(int hits);
         sf::Color getColor() const override;
         void updateAppearance();

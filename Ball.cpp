@@ -1,10 +1,11 @@
+// Ball.cpp
 #include "Ball.h"
 #include <cmath>
 #include <cstdlib>
 
 namespace Arcanoid {
 
-    Ball::Ball(float initialSpeed) : speed(initialSpeed) {
+    Ball::Ball(float initialSpeed) : speed(initialSpeed), baseSpeed(initialSpeed) {
         size = sf::Vector2f(14.0f, 14.0f);
         position = sf::Vector2f(WINDOW_WIDTH / 2.0f - size.x / 2, WINDOW_HEIGHT / 2.0f - size.y / 2);
 
@@ -73,6 +74,7 @@ namespace Arcanoid {
 
     void Ball::reset() {
         position = sf::Vector2f(WINDOW_WIDTH / 2.0f - size.x / 2, WINDOW_HEIGHT / 2.0f - size.y / 2);
+        speed = baseSpeed;
         resetDirection();
         sprite.setPosition(position);
     }

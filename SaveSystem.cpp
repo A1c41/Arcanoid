@@ -1,3 +1,4 @@
+// SaveSystem.cpp
 #include "SaveSystem.h"
 #include "Ball.h"
 #include "Paddle.h"
@@ -29,28 +30,22 @@ namespace Arcanoid {
             state.y = block->getPosition().y;
             state.isActive = true;
             state.hitsRemaining = 0;
+            state.maxHits = 0;
             state.type = BlockState::NORMAL;
             state.colorR = 255;
             state.colorG = 255;
             state.colorB = 255;
 
-            auto* blockPtr = dynamic_cast<Block*>(block.get());
-            if (blockPtr) {
-                state.isActive = blockPtr->isAlive();
-                sf::Color color = blockPtr->getColor();
+            auto* indestructibleBlock = dynamic_cast<IndestructibleBlock*>(block.get());
+            if (indestructibleBlock) {
+                state.type = BlockState::INDESTRUCTIBLE;
+                state.isActive = true;
+                sf::Color color = indestructibleBlock->getColor();
                 state.colorR = color.r;
                 state.colorG = color.g;
                 state.colorB = color.b;
-            }
-
-            auto* strongBlock = dynamic_cast<StrongBlock*>(block.get());
-            if (strongBlock) {
-                state.type = BlockState::STRONG;
-                state.hitsRemaining = strongBlock->getHitsRemaining();
-                sf::Color color = strongBlock->getColor();
-                state.colorR = color.r;
-                state.colorG = color.g;
-                state.colorB = color.b;
+                blocks.push_back(state);
+                continue;
             }
 
             auto* glassBlock = dynamic_cast<GlassBlock*>(block.get());
@@ -61,13 +56,29 @@ namespace Arcanoid {
                 state.colorR = color.r;
                 state.colorG = color.g;
                 state.colorB = color.b;
+                blocks.push_back(state);
+                continue;
             }
 
-            auto* indestructibleBlock = dynamic_cast<IndestructibleBlock*>(block.get());
-            if (indestructibleBlock) {
-                state.type = BlockState::INDESTRUCTIBLE;
-                state.isActive = true;
-                sf::Color color = indestructibleBlock->getColor();
+            auto* strongBlock = dynamic_cast<StrongBlock*>(block.get());
+            if (strongBlock) {
+                state.type = BlockState::STRONG;
+                state.isActive = strongBlock->isAlive();
+                state.hitsRemaining = strongBlock->getHitsRemaining();
+                state.maxHits = strongBlock->getMaxHits();
+                sf::Color color = strongBlock->getColor();
+                state.colorR = color.r;
+                state.colorG = color.g;
+                state.colorB = color.b;
+                blocks.push_back(state);
+                continue;
+            }
+
+            auto* normalBlock = dynamic_cast<Block*>(block.get());
+            if (normalBlock) {
+                state.type = BlockState::NORMAL;
+                state.isActive = normalBlock->isAlive();
+                sf::Color color = normalBlock->getColor();
                 state.colorR = color.r;
                 state.colorG = color.g;
                 state.colorB = color.b;
@@ -106,7 +117,7 @@ namespace Arcanoid {
                 state.y = bonus->getPosition().y;
                 state.type = static_cast<int>(bonus->getType());
                 state.isActive = true;
-                state.remainingTime = 5.0f;
+                state.remainingTime = 0.0f;
                 bonuses.push_back(state);
             }
         }
@@ -256,7 +267,10 @@ namespace Arcanoid {
 
     void SaveSystem::loadFromFile() {
         std::ifstream file(saveFile, std::ios::binary);
-        if (!file.is_open()) return;
+        if (!file.is_open()) {
+            save = nullptr;
+            return;
+        }
 
         try {
             save = std::make_unique<GameMemento>();

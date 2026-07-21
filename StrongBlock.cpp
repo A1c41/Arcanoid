@@ -1,3 +1,4 @@
+// StrongBlock.cpp
 #include "StrongBlock.h"
 
 namespace Arcanoid {
@@ -67,6 +68,9 @@ namespace Arcanoid {
         hitsRemaining = hits;
         if (hitsRemaining > 0) {
             isActive = true;
+            if (hitsRemaining > maxHits) {
+                maxHits = hitsRemaining;
+            }
             updateAppearance();
         }
         else {

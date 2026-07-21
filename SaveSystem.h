@@ -1,3 +1,4 @@
+// SaveSystem.h
 #pragma once
 #include <memory>
 #include <vector>
@@ -16,11 +17,12 @@ namespace Arcanoid {
             float y;
             bool isActive;
             int hitsRemaining;
+            int maxHits;
             enum BlockType { NORMAL, STRONG, GLASS, INDESTRUCTIBLE } type;
             int colorR, colorG, colorB;
 
             BlockState() : x(0), y(0), isActive(true), hitsRemaining(0),
-                type(NORMAL), colorR(255), colorG(255), colorB(255) {
+                maxHits(0), type(NORMAL), colorR(255), colorG(255), colorB(255) {
             }
         };
 

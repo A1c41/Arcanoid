@@ -9,7 +9,7 @@ namespace Arcanoid {
         float speed;
         bool moveLeft;
         bool moveRight;
-        sf::Texture texture;
+        sf::RectangleShape shape;
         float baseWidth;
         float baseHeight;
 

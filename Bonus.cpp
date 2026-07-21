@@ -1,3 +1,4 @@
+// Bonus.cpp
 #include "Bonus.h"
 #include "Paddle.h"
 #include "Ball.h"
@@ -10,23 +11,30 @@
 
 namespace Arcanoid {
 
-    FireBallEffect::FireBallEffect() : duration(8.0f), elapsedTime(0.0f), isActive(false) {}
+    FireBallEffect::FireBallEffect() : duration(8.0f), elapsedTime(0.0f),
+        isActive(false), speedMultiplier(1.5f), activeCount(0) {
+    }
 
     void FireBallEffect::apply(Paddle* paddle, Ball* ball, std::vector<std::unique_ptr<GameObject>>& blocks) {
         if (ball) {
             float currentSpeed = ball->getSpeed();
             speedStack.push(currentSpeed);
-            ball->setSpeed(currentSpeed * 1.5f);
+            ball->setSpeed(currentSpeed * speedMultiplier);
             isActive = true;
+            activeCount++;
         }
     }
 
     void FireBallEffect::remove(Paddle* paddle, Ball* ball, std::vector<std::unique_ptr<GameObject>>& blocks) {
-        if (isActive && ball && !speedStack.empty()) {
-            ball->setSpeed(speedStack.top());
+        if (ball && !speedStack.empty()) {
+            float previousSpeed = speedStack.top();
             speedStack.pop();
-            if (speedStack.empty()) {
+            ball->setSpeed(previousSpeed);
+            activeCount--;
+            if (activeCount <= 0) {
                 isActive = false;
+                while (!speedStack.empty()) speedStack.pop();
+                activeCount = 0;
             }
         }
     }
@@ -34,22 +42,18 @@ namespace Arcanoid {
     float FireBallEffect::getDuration() const { return duration; }
     sf::Color FireBallEffect::getColor() const { return sf::Color(255, 100, 0); }
     int FireBallEffect::getType() const { return 0; }
-    void FireBallEffect::restoreState(float time) { elapsedTime = time; isActive = true; }
+    void FireBallEffect::restoreState(float time) { elapsedTime = time; }
     float FireBallEffect::getElapsedTime() const { return elapsedTime; }
     void FireBallEffect::reset() {
-        while (!speedStack.empty()) speedStack.pop();
         isActive = false;
         elapsedTime = 0.0f;
+        activeCount = 0;
+        while (!speedStack.empty()) speedStack.pop();
     }
 
-    FragileBlocksEffect::FragileBlocksEffect() : duration(10.0f), elapsedTime(0.0f), isApplied(false) {}
+    FragileBlocksEffect::FragileBlocksEffect() : duration(10.0f), elapsedTime(0.0f), isApplied(false), activeCount(0) {}
 
     void FragileBlocksEffect::apply(Paddle* paddle, Ball* ball, std::vector<std::unique_ptr<GameObject>>& blocks) {
-        if (isApplied) {
-            elapsedTime = 0.0f;
-            return;
-        }
-
         std::vector<std::pair<StrongBlock*, int>> currentState;
         for (auto& block : blocks) {
             auto* strongBlock = dynamic_cast<StrongBlock*>(block.get());
@@ -58,16 +62,22 @@ namespace Arcanoid {
                 if (originalHits > 1) {
                     currentState.push_back({ strongBlock, originalHits });
                     strongBlock->setHitsRemaining(1);
+                    strongBlock->updateAppearance();
                 }
             }
         }
-        stateStack.push(currentState);
-        affectedBlocks = currentState;
-        isApplied = true;
+        if (!currentState.empty()) {
+            stateStack.push(currentState);
+            affectedBlocks = currentState;
+            isApplied = true;
+        }
+        activeCount++;
+        elapsedTime = 0.0f;
     }
 
     void FragileBlocksEffect::remove(Paddle* paddle, Ball* ball, std::vector<std::unique_ptr<GameObject>>& blocks) {
-        if (!stateStack.empty()) {
+        activeCount--;
+        if (activeCount <= 0 && !stateStack.empty()) {
             auto previousState = stateStack.top();
             stateStack.pop();
 
@@ -81,6 +91,7 @@ namespace Arcanoid {
             if (stateStack.empty()) {
                 affectedBlocks.clear();
                 isApplied = false;
+                activeCount = 0;
             }
             else {
                 affectedBlocks = stateStack.top();
@@ -91,36 +102,46 @@ namespace Arcanoid {
     float FragileBlocksEffect::getDuration() const { return duration; }
     sf::Color FragileBlocksEffect::getColor() const { return sf::Color(100, 255, 100); }
     int FragileBlocksEffect::getType() const { return 1; }
-    void FragileBlocksEffect::restoreState(float time) { elapsedTime = time; isApplied = true; }
+    void FragileBlocksEffect::restoreState(float time) { elapsedTime = time; }
     float FragileBlocksEffect::getElapsedTime() const { return elapsedTime; }
     void FragileBlocksEffect::reset() {
         affectedBlocks.clear();
         while (!stateStack.empty()) stateStack.pop();
         isApplied = false;
         elapsedTime = 0.0f;
+        activeCount = 0;
     }
 
     PaddleSizeEffect::PaddleSizeEffect(float multiplier)
-        : duration(10.0f), elapsedTime(0.0f), sizeMultiplier(multiplier), isApplied(false) {
+        : duration(10.0f), elapsedTime(0.0f), sizeMultiplier(multiplier), isApplied(false), activeCount(0) {
     }
 
     void PaddleSizeEffect::apply(Paddle* paddle, Ball* ball, std::vector<std::unique_ptr<GameObject>>& blocks) {
         if (paddle) {
-            sizeStack.push(paddle->getSize());
             sf::Vector2f currentSize = paddle->getSize();
-            sf::Vector2f newSize = currentSize;
-            newSize.x = currentSize.x * sizeMultiplier;
+            sizeStack.push(currentSize);
+            sf::Vector2f newSize(currentSize.x * sizeMultiplier, currentSize.y);
             paddle->setSize(newSize);
             isApplied = true;
+            activeCount++;
         }
     }
 
     void PaddleSizeEffect::remove(Paddle* paddle, Ball* ball, std::vector<std::unique_ptr<GameObject>>& blocks) {
         if (paddle && isApplied && !sizeStack.empty()) {
-            paddle->setSize(sizeStack.top());
-            sizeStack.pop();
-            if (sizeStack.empty()) {
+            activeCount--;
+            if (activeCount <= 0) {
+                sf::Vector2f previousSize = sizeStack.top();
+                sizeStack.pop();
+                paddle->setSize(previousSize);
+                while (!sizeStack.empty()) {
+                    sizeStack.pop();
+                }
                 isApplied = false;
+                activeCount = 0;
+            }
+            else {
+                sizeStack.pop();
             }
         }
     }
@@ -131,32 +152,39 @@ namespace Arcanoid {
     }
     float PaddleSizeEffect::getMultiplier() const { return sizeMultiplier; }
     int PaddleSizeEffect::getType() const { return sizeMultiplier > 1.0f ? 2 : 3; }
-    void PaddleSizeEffect::restoreState(float time) { elapsedTime = time; isApplied = true; }
+    void PaddleSizeEffect::restoreState(float time) { elapsedTime = time; }
     float PaddleSizeEffect::getElapsedTime() const { return elapsedTime; }
     void PaddleSizeEffect::reset() {
         while (!sizeStack.empty()) sizeStack.pop();
         isApplied = false;
         elapsedTime = 0.0f;
+        activeCount = 0;
     }
 
     PaddleSpeedEffect::PaddleSpeedEffect(float multiplier)
-        : duration(10.0f), elapsedTime(0.0f), speedMultiplier(multiplier), isApplied(false) {
+        : duration(10.0f), elapsedTime(0.0f), speedMultiplier(multiplier), isApplied(false), activeCount(0) {
     }
 
     void PaddleSpeedEffect::apply(Paddle* paddle, Ball* ball, std::vector<std::unique_ptr<GameObject>>& blocks) {
         if (paddle) {
-            speedStack.push(paddle->getSpeed());
-            paddle->setSpeed(paddle->getSpeed() * speedMultiplier);
+            float currentSpeed = paddle->getSpeed();
+            speedStack.push(currentSpeed);
+            paddle->setSpeed(currentSpeed * speedMultiplier);
             isApplied = true;
+            activeCount++;
         }
     }
 
     void PaddleSpeedEffect::remove(Paddle* paddle, Ball* ball, std::vector<std::unique_ptr<GameObject>>& blocks) {
         if (paddle && isApplied && !speedStack.empty()) {
-            paddle->setSpeed(speedStack.top());
+            activeCount--;
+            float previousSpeed = speedStack.top();
             speedStack.pop();
-            if (speedStack.empty()) {
+            if (activeCount <= 0) {
+                paddle->setSpeed(previousSpeed);
+                while (!speedStack.empty()) speedStack.pop();
                 isApplied = false;
+                activeCount = 0;
             }
         }
     }
@@ -167,12 +195,13 @@ namespace Arcanoid {
     }
     float PaddleSpeedEffect::getMultiplier() const { return speedMultiplier; }
     int PaddleSpeedEffect::getType() const { return speedMultiplier > 1.0f ? 4 : 5; }
-    void PaddleSpeedEffect::restoreState(float time) { elapsedTime = time; isApplied = true; }
+    void PaddleSpeedEffect::restoreState(float time) { elapsedTime = time; }
     float PaddleSpeedEffect::getElapsedTime() const { return elapsedTime; }
     void PaddleSpeedEffect::reset() {
         while (!speedStack.empty()) speedStack.pop();
         isApplied = false;
         elapsedTime = 0.0f;
+        activeCount = 0;
     }
 
     Bonus::Bonus(float x, float y, Type type)

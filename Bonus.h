@@ -1,3 +1,4 @@
+// Bonus.h
 #pragma once
 #include "GameObject.h"
 #include "Constants.h"
@@ -32,6 +33,8 @@ namespace Arcanoid {
         float duration;
         float elapsedTime;
         bool isActive;
+        float speedMultiplier;
+        int activeCount;
         std::stack<float> speedStack;
 
     public:
@@ -54,6 +57,7 @@ namespace Arcanoid {
         bool isApplied;
         std::vector<std::pair<StrongBlock*, int>> affectedBlocks;
         std::stack<std::vector<std::pair<StrongBlock*, int>>> stateStack;
+        int activeCount;
 
     public:
         FragileBlocksEffect();
@@ -76,6 +80,7 @@ namespace Arcanoid {
         float sizeMultiplier;
         bool isApplied;
         std::stack<sf::Vector2f> sizeStack;
+        int activeCount;
 
     public:
         PaddleSizeEffect(float multiplier);
@@ -97,6 +102,7 @@ namespace Arcanoid {
         float speedMultiplier;
         bool isApplied;
         std::stack<float> speedStack;
+        int activeCount;
 
     public:
         PaddleSpeedEffect(float multiplier);

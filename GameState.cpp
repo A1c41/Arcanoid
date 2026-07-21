@@ -1,3 +1,4 @@
+// GameState.cpp
 #include "GameState.h"
 #include "Paddle.h"
 #include "Ball.h"
@@ -119,6 +120,8 @@ namespace Arcanoid {
         bonuses.clear();
         currentState = PLAYING;
 
+        saveSystem.clearSave();
+
         if (musicEnabled && music.getStatus() != sf::Music::Playing) {
             music.play();
         }
@@ -158,8 +161,12 @@ namespace Arcanoid {
                 }
                 break;
             case GameMemento::BlockState::STRONG:
-                block = std::make_unique<StrongBlock>(state.x, state.y, color, state.hitsRemaining);
-                if (!state.isActive) {
+                block = std::make_unique<StrongBlock>(state.x, state.y, color, state.maxHits);
+                if (state.isActive) {
+                    static_cast<StrongBlock*>(block.get())->setHitsRemaining(state.hitsRemaining);
+                    static_cast<StrongBlock*>(block.get())->updateAppearance();
+                }
+                else {
                     static_cast<StrongBlock*>(block.get())->setHitsRemaining(0);
                 }
                 break;
@@ -191,10 +198,10 @@ namespace Arcanoid {
         switch (state.type) {
         case 0: effect = std::make_unique<FireBallEffect>(); break;
         case 1: effect = std::make_unique<FragileBlocksEffect>(); break;
-        case 2: effect = std::make_unique<PaddleSizeEffect>(state.multiplier); break;
-        case 3: effect = std::make_unique<PaddleSizeEffect>(state.multiplier); break;
-        case 4: effect = std::make_unique<PaddleSpeedEffect>(state.multiplier); break;
-        case 5: effect = std::make_unique<PaddleSpeedEffect>(state.multiplier); break;
+        case 2: effect = std::make_unique<PaddleSizeEffect>(1.5f); break;
+        case 3: effect = std::make_unique<PaddleSizeEffect>(0.7f); break;
+        case 4: effect = std::make_unique<PaddleSpeedEffect>(1.5f); break;
+        case 5: effect = std::make_unique<PaddleSpeedEffect>(0.7f); break;
         }
         return effect;
     }
@@ -264,15 +271,6 @@ namespace Arcanoid {
         }
     }
 
-    void GameState::updateBlockVisuals() {
-        for (auto& block : blocks) {
-            auto* strongBlock = dynamic_cast<StrongBlock*>(block.get());
-            if (strongBlock) {
-                strongBlock->updateAppearance();
-            }
-        }
-    }
-
     void GameState::showSaveMessageText(const std::string& message) {
         saveMessageText.setString(message);
         sf::FloatRect textBounds = saveMessageText.getLocalBounds();
@@ -316,11 +314,12 @@ namespace Arcanoid {
             auto effect = createEffectFromState(effectState);
             if (effect) {
                 effect->restoreState(effectState.elapsedTime);
+                Paddle* paddlePtr = static_cast<Paddle*>(paddle.get());
+                Ball* ballPtr = static_cast<Ball*>(ball.get());
+                effect->apply(paddlePtr, ballPtr, blocks);
                 activeEffects.push_back({ std::move(effect), effectState.elapsedTime });
             }
         }
-
-        updateBlockVisuals();
 
         saveSystem.clearSave();
     }
