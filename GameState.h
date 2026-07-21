@@ -1,3 +1,4 @@
+// GameState.h
 #pragma once
 #include <SFML/Graphics.hpp>
 #include <SFML/Audio.hpp>
@@ -62,6 +63,7 @@ namespace Arcanoid {
         void updateSaveMessage(float dt);
         void resetAllEffects();
         void restoreBaseState(const GameMemento* memento);
+        void restoreEffectsFromSave(const GameMemento* memento);
         void updateBlockVisuals();
         std::unique_ptr<IBonusEffect> createEffectFromState(const GameMemento::ActiveEffectState& state);
         void loadGameFromSave();

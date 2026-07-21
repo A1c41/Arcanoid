@@ -117,7 +117,6 @@ namespace Arcanoid {
                 state.y = bonus->getPosition().y;
                 state.type = static_cast<int>(bonus->getType());
                 state.isActive = true;
-                state.remainingTime = 0.0f;
                 bonuses.push_back(state);
             }
         }
@@ -127,33 +126,7 @@ namespace Arcanoid {
             ActiveEffectState state;
             state.type = effect.first->getType();
             state.elapsedTime = effect.second;
-            state.multiplier = 1.0f;
-
-            auto* sizeEffect = dynamic_cast<const PaddleSizeEffect*>(effect.first.get());
-            if (sizeEffect) {
-                state.multiplier = sizeEffect->getMultiplier();
-            }
-            auto* speedEffect = dynamic_cast<const PaddleSpeedEffect*>(effect.first.get());
-            if (speedEffect) {
-                state.multiplier = speedEffect->getMultiplier();
-            }
-
-            auto* fragileEffect = dynamic_cast<const FragileBlocksEffect*>(effect.first.get());
-            if (fragileEffect) {
-                const auto& affected = fragileEffect->getAffectedBlocks();
-                for (const auto& pair : affected) {
-                    for (size_t i = 0; i < blocks_.size(); ++i) {
-                        if (blocks_[i].get() == pair.first) {
-                            AffectedBlockInfo info;
-                            info.blockIndex = static_cast<int>(i);
-                            info.originalHits = pair.second;
-                            state.affectedBlocks.push_back(info);
-                            break;
-                        }
-                    }
-                }
-            }
-
+            state.multiplier = effect.first->getMultiplier();
             activeEffects.push_back(state);
         }
     }
@@ -247,19 +220,10 @@ namespace Arcanoid {
             int type = effect.type;
             float elapsedTime = effect.elapsedTime;
             float multiplier = effect.multiplier;
-            size_t affectedCount = effect.affectedBlocks.size();
 
             file.write(reinterpret_cast<const char*>(&type), sizeof(int));
             file.write(reinterpret_cast<const char*>(&elapsedTime), sizeof(float));
             file.write(reinterpret_cast<const char*>(&multiplier), sizeof(float));
-            file.write(reinterpret_cast<const char*>(&affectedCount), sizeof(size_t));
-
-            for (const auto& info : effect.affectedBlocks) {
-                int blockIndex = info.blockIndex;
-                int originalHits = info.originalHits;
-                file.write(reinterpret_cast<const char*>(&blockIndex), sizeof(int));
-                file.write(reinterpret_cast<const char*>(&originalHits), sizeof(int));
-            }
         }
 
         file.close();
@@ -319,23 +283,14 @@ namespace Arcanoid {
                 int type;
                 float elapsedTime;
                 float multiplier;
-                size_t affectedCount;
 
                 file.read(reinterpret_cast<char*>(&type), sizeof(int));
                 file.read(reinterpret_cast<char*>(&elapsedTime), sizeof(float));
                 file.read(reinterpret_cast<char*>(&multiplier), sizeof(float));
-                file.read(reinterpret_cast<char*>(&affectedCount), sizeof(size_t));
 
                 effect.type = type;
                 effect.elapsedTime = elapsedTime;
                 effect.multiplier = multiplier;
-
-                for (size_t j = 0; j < affectedCount; ++j) {
-                    GameMemento::AffectedBlockInfo info;
-                    file.read(reinterpret_cast<char*>(&info.blockIndex), sizeof(int));
-                    file.read(reinterpret_cast<char*>(&info.originalHits), sizeof(int));
-                    effect.affectedBlocks.push_back(info);
-                }
 
                 activeEffects.push_back(effect);
             }

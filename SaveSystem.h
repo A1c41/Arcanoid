@@ -45,24 +45,15 @@ namespace Arcanoid {
         struct BonusState {
             float x, y;
             int type;
-            float remainingTime;
             bool isActive;
 
-            BonusState() : x(0), y(0), type(0), remainingTime(0), isActive(false) {}
-        };
-
-        struct AffectedBlockInfo {
-            int blockIndex;
-            int originalHits;
-
-            AffectedBlockInfo() : blockIndex(-1), originalHits(0) {}
+            BonusState() : x(0), y(0), type(0), isActive(false) {}
         };
 
         struct ActiveEffectState {
             int type;
             float elapsedTime;
             float multiplier;
-            std::vector<AffectedBlockInfo> affectedBlocks;
 
             ActiveEffectState() : type(0), elapsedTime(0), multiplier(1.0f) {}
         };

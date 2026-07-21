@@ -6,7 +6,6 @@
 #include <memory>
 #include <vector>
 #include <utility>
-#include <stack>
 
 namespace Arcanoid {
 
@@ -26,6 +25,7 @@ namespace Arcanoid {
         virtual void restoreState(float elapsedTime) = 0;
         virtual float getElapsedTime() const = 0;
         virtual void reset() = 0;
+        virtual float getMultiplier() const { return 1.0f; }
     };
 
     class FireBallEffect : public IBonusEffect {
@@ -34,8 +34,7 @@ namespace Arcanoid {
         float elapsedTime;
         bool isActive;
         float speedMultiplier;
-        int activeCount;
-        std::stack<float> speedStack;
+        float originalSpeed;
 
     public:
         FireBallEffect();
@@ -47,6 +46,7 @@ namespace Arcanoid {
         void restoreState(float elapsedTime) override;
         float getElapsedTime() const override;
         void reset() override;
+        float getMultiplier() const override { return speedMultiplier; }
         bool isFireBallActive() const { return isActive; }
     };
 
@@ -56,8 +56,6 @@ namespace Arcanoid {
         float elapsedTime;
         bool isApplied;
         std::vector<std::pair<StrongBlock*, int>> affectedBlocks;
-        std::stack<std::vector<std::pair<StrongBlock*, int>>> stateStack;
-        int activeCount;
 
     public:
         FragileBlocksEffect();
@@ -69,8 +67,6 @@ namespace Arcanoid {
         void restoreState(float elapsedTime) override;
         float getElapsedTime() const override;
         void reset() override;
-        const std::vector<std::pair<StrongBlock*, int>>& getAffectedBlocks() const { return affectedBlocks; }
-        void setAffectedBlocks(const std::vector<std::pair<StrongBlock*, int>>& blocks) { affectedBlocks = blocks; }
     };
 
     class PaddleSizeEffect : public IBonusEffect {
@@ -79,8 +75,7 @@ namespace Arcanoid {
         float elapsedTime;
         float sizeMultiplier;
         bool isApplied;
-        std::stack<sf::Vector2f> sizeStack;
-        int activeCount;
+        sf::Vector2f originalSize;
 
     public:
         PaddleSizeEffect(float multiplier);
@@ -88,7 +83,7 @@ namespace Arcanoid {
         void remove(Paddle* paddle, Ball* ball, std::vector<std::unique_ptr<GameObject>>& blocks) override;
         float getDuration() const override;
         sf::Color getColor() const override;
-        float getMultiplier() const;
+        float getMultiplier() const override { return sizeMultiplier; }
         int getType() const override;
         void restoreState(float elapsedTime) override;
         float getElapsedTime() const override;
@@ -101,8 +96,7 @@ namespace Arcanoid {
         float elapsedTime;
         float speedMultiplier;
         bool isApplied;
-        std::stack<float> speedStack;
-        int activeCount;
+        float originalSpeed;
 
     public:
         PaddleSpeedEffect(float multiplier);
@@ -110,7 +104,7 @@ namespace Arcanoid {
         void remove(Paddle* paddle, Ball* ball, std::vector<std::unique_ptr<GameObject>>& blocks) override;
         float getDuration() const override;
         sf::Color getColor() const override;
-        float getMultiplier() const;
+        float getMultiplier() const override { return speedMultiplier; }
         int getType() const override;
         void restoreState(float elapsedTime) override;
         float getElapsedTime() const override;

@@ -106,6 +106,7 @@ namespace Arcanoid {
 
         paddle->setPosition(WINDOW_WIDTH / 2.0f - 60.0f, WINDOW_HEIGHT - 50.0f);
         static_cast<Paddle*>(paddle.get())->setSpeed(settings.paddleSpeed);
+        static_cast<Paddle*>(paddle.get())->setSize(sf::Vector2f(120.0f, 22.0f));
 
         auto* ballPtr = static_cast<Ball*>(ball.get());
         ballPtr->setSpeed(settings.ballSpeed);
@@ -193,10 +194,60 @@ namespace Arcanoid {
         }
     }
 
+    void GameState::restoreEffectsFromSave(const GameMemento* memento) {
+        activeEffects.clear();
+
+        const auto& effectStates = memento->getActiveEffects();
+        for (const auto& effectState : effectStates) {
+            std::unique_ptr<IBonusEffect> effect;
+
+            switch (effectState.type) {
+            case 0: {
+                auto fireEffect = std::make_unique<FireBallEffect>();
+                fireEffect->restoreState(effectState.elapsedTime);
+                effect = std::move(fireEffect);
+                break;
+            }
+            case 1: {
+                auto fragileEffect = std::make_unique<FragileBlocksEffect>();
+                fragileEffect->restoreState(effectState.elapsedTime);
+                effect = std::move(fragileEffect);
+                break;
+            }
+            case 2:
+                effect = std::make_unique<PaddleSizeEffect>(1.5f);
+                effect->restoreState(effectState.elapsedTime);
+                break;
+            case 3:
+                effect = std::make_unique<PaddleSizeEffect>(0.7f);
+                effect->restoreState(effectState.elapsedTime);
+                break;
+            case 4:
+                effect = std::make_unique<PaddleSpeedEffect>(1.5f);
+                effect->restoreState(effectState.elapsedTime);
+                break;
+            case 5:
+                effect = std::make_unique<PaddleSpeedEffect>(0.7f);
+                effect->restoreState(effectState.elapsedTime);
+                break;
+            }
+
+            if (effect) {
+                Paddle* paddlePtr = static_cast<Paddle*>(paddle.get());
+                Ball* ballPtr = static_cast<Ball*>(ball.get());
+                effect->apply(paddlePtr, ballPtr, blocks);
+                activeEffects.push_back({ std::move(effect), effectState.elapsedTime });
+            }
+        }
+    }
+
     std::unique_ptr<IBonusEffect> GameState::createEffectFromState(const GameMemento::ActiveEffectState& state) {
         std::unique_ptr<IBonusEffect> effect;
         switch (state.type) {
-        case 0: effect = std::make_unique<FireBallEffect>(); break;
+        case 0: {
+            auto fireEffect = std::make_unique<FireBallEffect>();
+            return fireEffect;
+        }
         case 1: effect = std::make_unique<FragileBlocksEffect>(); break;
         case 2: effect = std::make_unique<PaddleSizeEffect>(1.5f); break;
         case 3: effect = std::make_unique<PaddleSizeEffect>(0.7f); break;
@@ -204,6 +255,22 @@ namespace Arcanoid {
         case 5: effect = std::make_unique<PaddleSpeedEffect>(0.7f); break;
         }
         return effect;
+    }
+
+    void GameState::loadGameFromSave() {
+        saveSystem.loadGame();
+        auto* memento = saveSystem.getCurrentSave();
+        if (!memento) return;
+
+        resetAllEffects();
+
+        currentDifficulty = static_cast<Difficulty>(memento->getDifficulty());
+
+        restoreBaseState(memento);
+
+        restoreEffectsFromSave(memento);
+
+        saveSystem.clearSave();
     }
 
     void GameState::checkVictory() {
@@ -235,14 +302,26 @@ namespace Arcanoid {
 
             if ((*it)->getBounds().intersects(paddle->getBounds())) {
                 auto* bonus = it->get();
-                auto effect = bonus->releaseEffect();
+                auto newEffect = bonus->releaseEffect();
 
-                if (effect) {
-                    Paddle* paddlePtr = static_cast<Paddle*>(paddle.get());
-                    Ball* ballPtr = static_cast<Ball*>(ball.get());
+                if (newEffect) {
+                    int newType = newEffect->getType();
+                    bool effectFound = false;
 
-                    effect->apply(paddlePtr, ballPtr, blocks);
-                    activeEffects.push_back({ std::move(effect), 0.0f });
+                    for (auto& existingEffect : activeEffects) {
+                        if (existingEffect.first->getType() == newType) {
+                            existingEffect.second = 0.0f;
+                            effectFound = true;
+                            break;
+                        }
+                    }
+
+                    if (!effectFound) {
+                        Paddle* paddlePtr = static_cast<Paddle*>(paddle.get());
+                        Ball* ballPtr = static_cast<Ball*>(ball.get());
+                        newEffect->apply(paddlePtr, ballPtr, blocks);
+                        activeEffects.push_back({ std::move(newEffect), 0.0f });
+                    }
 
                     if (soundEnabled) soundBonus.play();
                 }
@@ -296,32 +375,6 @@ namespace Arcanoid {
                 ++it;
             }
         }
-    }
-
-    void GameState::loadGameFromSave() {
-        saveSystem.loadGame();
-        auto* memento = saveSystem.getCurrentSave();
-        if (!memento) return;
-
-        resetAllEffects();
-
-        currentDifficulty = static_cast<Difficulty>(memento->getDifficulty());
-
-        restoreBaseState(memento);
-
-        const auto& effectStates = memento->getActiveEffects();
-        for (const auto& effectState : effectStates) {
-            auto effect = createEffectFromState(effectState);
-            if (effect) {
-                effect->restoreState(effectState.elapsedTime);
-                Paddle* paddlePtr = static_cast<Paddle*>(paddle.get());
-                Ball* ballPtr = static_cast<Ball*>(ball.get());
-                effect->apply(paddlePtr, ballPtr, blocks);
-                activeEffects.push_back({ std::move(effect), effectState.elapsedTime });
-            }
-        }
-
-        saveSystem.clearSave();
     }
 
     void GameState::update(float dt) {
