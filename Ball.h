@@ -28,6 +28,7 @@ namespace Arcanoid {
         void setVelocity(const sf::Vector2f& newVelocity) { velocity = newVelocity; }
         void reflectX() { velocity.x = -velocity.x; }
         void reflectY() { velocity.y = -velocity.y; }
+        float getSpeed() const { return speed; }
     };
 
 }

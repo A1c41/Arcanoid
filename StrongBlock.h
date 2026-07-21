@@ -13,8 +13,6 @@ namespace Arcanoid {
         sf::Text hitCountText;
         sf::Font font;
 
-        void updateAppearance();
-
     public:
         StrongBlock(float x, float y, sf::Color color, int hits = 3);
         ~StrongBlock() = default;
@@ -25,6 +23,7 @@ namespace Arcanoid {
         int getHitsRemaining() const { return hitsRemaining; }
         void setHitsRemaining(int hits);
         sf::Color getColor() const override;
+        void updateAppearance();
     };
 
 }

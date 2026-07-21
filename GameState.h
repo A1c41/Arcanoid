@@ -61,6 +61,10 @@ namespace Arcanoid {
         void updateActiveEffects(float dt);
         void updateSaveMessage(float dt);
         void resetAllEffects();
+        void restoreBaseState(const GameMemento* memento);
+        void updateBlockVisuals();
+        std::unique_ptr<IBonusEffect> createEffectFromState(const GameMemento::ActiveEffectState& state);
+        void loadGameFromSave();
 
         void renderGame();
         void renderMenu();
@@ -80,7 +84,6 @@ namespace Arcanoid {
         void handleHighScoresInput(const sf::Event& event);
 
         void showSaveMessageText(const std::string& message);
-        void loadGameFromSave();
 
     public:
         GameState();

@@ -10,9 +10,9 @@
 
 namespace Arcanoid {
 
-    GameMemento::GameMemento() : score(0), lives(3) {}
+    GameMemento::GameMemento() : score(0), lives(3), difficulty(1) {}
 
-    void GameMemento::saveState(int score_, int lives_,
+    void GameMemento::saveState(int score_, int lives_, int difficulty_,
         const std::vector<std::unique_ptr<GameObject>>& blocks_,
         const GameObject* ball_,
         const GameObject* paddle_,
@@ -20,6 +20,7 @@ namespace Arcanoid {
         const std::vector<std::pair<std::unique_ptr<IBonusEffect>, float>>& activeEffects_) {
         score = score_;
         lives = lives_;
+        difficulty = difficulty_;
 
         blocks.clear();
         for (const auto& block : blocks_) {
@@ -28,8 +29,7 @@ namespace Arcanoid {
             state.y = block->getPosition().y;
             state.isActive = true;
             state.hitsRemaining = 0;
-            state.isGlass = false;
-            state.isIndestructible = false;
+            state.type = BlockState::NORMAL;
             state.colorR = 255;
             state.colorG = 255;
             state.colorB = 255;
@@ -45,6 +45,7 @@ namespace Arcanoid {
 
             auto* strongBlock = dynamic_cast<StrongBlock*>(block.get());
             if (strongBlock) {
+                state.type = BlockState::STRONG;
                 state.hitsRemaining = strongBlock->getHitsRemaining();
                 sf::Color color = strongBlock->getColor();
                 state.colorR = color.r;
@@ -54,7 +55,7 @@ namespace Arcanoid {
 
             auto* glassBlock = dynamic_cast<GlassBlock*>(block.get());
             if (glassBlock) {
-                state.isGlass = true;
+                state.type = BlockState::GLASS;
                 state.isActive = glassBlock->isAlive();
                 sf::Color color = glassBlock->getColor();
                 state.colorR = color.r;
@@ -64,7 +65,7 @@ namespace Arcanoid {
 
             auto* indestructibleBlock = dynamic_cast<IndestructibleBlock*>(block.get());
             if (indestructibleBlock) {
-                state.isIndestructible = true;
+                state.type = BlockState::INDESTRUCTIBLE;
                 state.isActive = true;
                 sf::Color color = indestructibleBlock->getColor();
                 state.colorR = color.r;
@@ -82,7 +83,7 @@ namespace Arcanoid {
                 ballState.y = ball->getPosition().y;
                 ballState.vx = ball->getVelocity().x;
                 ballState.vy = ball->getVelocity().y;
-                ballState.speed = std::sqrt(ballState.vx * ballState.vx + ballState.vy * ballState.vy);
+                ballState.speed = ball->getSpeed();
             }
         }
 
@@ -148,6 +149,7 @@ namespace Arcanoid {
 
     int GameMemento::getScore() const { return score; }
     int GameMemento::getLives() const { return lives; }
+    int GameMemento::getDifficulty() const { return difficulty; }
     const std::vector<GameMemento::BlockState>& GameMemento::getBlocks() const { return blocks; }
     const GameMemento::BallState& GameMemento::getBall() const { return ballState; }
     const GameMemento::PaddleState& GameMemento::getPaddle() const { return paddleState; }
@@ -165,14 +167,14 @@ namespace Arcanoid {
         }
     }
 
-    void SaveSystem::saveGame(int score, int lives,
+    void SaveSystem::saveGame(int score, int lives, int difficulty,
         const std::vector<std::unique_ptr<GameObject>>& blocks,
         const GameObject* ball,
         const GameObject* paddle,
         const std::vector<std::unique_ptr<Bonus>>& bonuses,
         const std::vector<std::pair<std::unique_ptr<IBonusEffect>, float>>& activeEffects) {
         save = std::make_unique<GameMemento>();
-        save->saveState(score, lives, blocks, ball, paddle, bonuses, activeEffects);
+        save->saveState(score, lives, difficulty, blocks, ball, paddle, bonuses, activeEffects);
         saveToFile();
     }
 
@@ -202,8 +204,10 @@ namespace Arcanoid {
 
         int score = save->getScore();
         int lives = save->getLives();
+        int difficulty = save->getDifficulty();
         file.write(reinterpret_cast<const char*>(&score), sizeof(int));
         file.write(reinterpret_cast<const char*>(&lives), sizeof(int));
+        file.write(reinterpret_cast<const char*>(&difficulty), sizeof(int));
 
         GameMemento::BallState ballState = save->getBall();
         file.write(reinterpret_cast<const char*>(&ballState), sizeof(GameMemento::BallState));
@@ -257,11 +261,13 @@ namespace Arcanoid {
         try {
             save = std::make_unique<GameMemento>();
 
-            int score, lives;
+            int score, lives, difficulty;
             file.read(reinterpret_cast<char*>(&score), sizeof(int));
             file.read(reinterpret_cast<char*>(&lives), sizeof(int));
+            file.read(reinterpret_cast<char*>(&difficulty), sizeof(int));
             save->setScore(score);
             save->setLives(lives);
+            save->setDifficulty(difficulty);
 
             GameMemento::BallState ballState;
             file.read(reinterpret_cast<char*>(&ballState), sizeof(GameMemento::BallState));

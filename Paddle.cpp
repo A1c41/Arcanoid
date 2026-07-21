@@ -22,9 +22,10 @@ namespace Arcanoid {
             position.x = 0;
         }
 
-        float scaleX = size.x / baseWidth;
-        float scaleY = size.y / baseHeight;
-        sprite.setScale(scaleX, scaleY);
+        sf::Image image;
+        image.create(static_cast<unsigned>(size.x), static_cast<unsigned>(size.y), sf::Color::White);
+        texture.loadFromImage(image);
+        sprite.setTexture(texture);
         sprite.setPosition(position);
     }
 

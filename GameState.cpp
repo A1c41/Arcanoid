@@ -93,6 +93,7 @@ namespace Arcanoid {
         Ball* ballPtr = static_cast<Ball*>(ball.get());
         for (auto& effect : activeEffects) {
             effect.first->remove(paddlePtr, ballPtr, blocks);
+            effect.first->reset();
         }
         activeEffects.clear();
     }
@@ -121,6 +122,81 @@ namespace Arcanoid {
         if (musicEnabled && music.getStatus() != sf::Music::Playing) {
             music.play();
         }
+    }
+
+    void GameState::restoreBaseState(const GameMemento* memento) {
+        lives = memento->getLives();
+        score = memento->getScore();
+        scoreSystem.resetScore();
+        scoreSystem.addScore(score);
+
+        auto* ballPtr = static_cast<Ball*>(ball.get());
+        const auto& ballState = memento->getBall();
+        ballPtr->setPosition(ballState.x, ballState.y);
+        ballPtr->setVelocity({ ballState.vx, ballState.vy });
+        ballPtr->setSpeed(ballState.speed);
+
+        const auto& paddleState = memento->getPaddle();
+        paddle->setPosition(paddleState.x, paddleState.y);
+        static_cast<Paddle*>(paddle.get())->setSpeed(paddleState.speed);
+        static_cast<Paddle*>(paddle.get())->setSize(sf::Vector2f(paddleState.sizeX, paddleState.sizeY));
+
+        blocks.clear();
+        const auto& blockStates = memento->getBlocks();
+        for (const auto& state : blockStates) {
+            sf::Color color(state.colorR, state.colorG, state.colorB);
+            std::unique_ptr<GameObject> block;
+
+            switch (state.type) {
+            case GameMemento::BlockState::INDESTRUCTIBLE:
+                block = std::make_unique<IndestructibleBlock>(state.x, state.y);
+                break;
+            case GameMemento::BlockState::GLASS:
+                block = std::make_unique<GlassBlock>(state.x, state.y);
+                if (!state.isActive) {
+                    static_cast<GlassBlock*>(block.get())->destroy();
+                }
+                break;
+            case GameMemento::BlockState::STRONG:
+                block = std::make_unique<StrongBlock>(state.x, state.y, color, state.hitsRemaining);
+                if (!state.isActive) {
+                    static_cast<StrongBlock*>(block.get())->setHitsRemaining(0);
+                }
+                break;
+            default:
+                block = std::make_unique<Block>(state.x, state.y, color);
+                if (!state.isActive) {
+                    static_cast<Block*>(block.get())->destroy();
+                }
+                break;
+            }
+            blocks.push_back(std::move(block));
+        }
+
+        bonuses.clear();
+        const auto& bonusStates = memento->getBonuses();
+        for (const auto& bonusState : bonusStates) {
+            if (bonusState.isActive) {
+                auto newBonus = std::make_unique<Bonus>(
+                    bonusState.x, bonusState.y,
+                    static_cast<Bonus::Type>(bonusState.type)
+                );
+                bonuses.push_back(std::move(newBonus));
+            }
+        }
+    }
+
+    std::unique_ptr<IBonusEffect> GameState::createEffectFromState(const GameMemento::ActiveEffectState& state) {
+        std::unique_ptr<IBonusEffect> effect;
+        switch (state.type) {
+        case 0: effect = std::make_unique<FireBallEffect>(); break;
+        case 1: effect = std::make_unique<FragileBlocksEffect>(); break;
+        case 2: effect = std::make_unique<PaddleSizeEffect>(state.multiplier); break;
+        case 3: effect = std::make_unique<PaddleSizeEffect>(state.multiplier); break;
+        case 4: effect = std::make_unique<PaddleSpeedEffect>(state.multiplier); break;
+        case 5: effect = std::make_unique<PaddleSpeedEffect>(state.multiplier); break;
+        }
+        return effect;
     }
 
     void GameState::checkVictory() {
@@ -188,6 +264,15 @@ namespace Arcanoid {
         }
     }
 
+    void GameState::updateBlockVisuals() {
+        for (auto& block : blocks) {
+            auto* strongBlock = dynamic_cast<StrongBlock*>(block.get());
+            if (strongBlock) {
+                strongBlock->updateAppearance();
+            }
+        }
+    }
+
     void GameState::showSaveMessageText(const std::string& message) {
         saveMessageText.setString(message);
         sf::FloatRect textBounds = saveMessageText.getLocalBounds();
@@ -222,160 +307,20 @@ namespace Arcanoid {
 
         resetAllEffects();
 
-        lives = memento->getLives();
-        score = memento->getScore();
-        scoreSystem.resetScore();
-        scoreSystem.addScore(score);
+        currentDifficulty = static_cast<Difficulty>(memento->getDifficulty());
 
-        auto* ballPtr = static_cast<Ball*>(ball.get());
-        const auto& ballState = memento->getBall();
-        ballPtr->setPosition(ballState.x, ballState.y);
-        ballPtr->setVelocity({ ballState.vx, ballState.vy });
-        ballPtr->setSpeed(ballState.speed);
+        restoreBaseState(memento);
 
-        const auto& paddleState = memento->getPaddle();
-        paddle->setPosition(paddleState.x, paddleState.y);
-        static_cast<Paddle*>(paddle.get())->setSpeed(paddleState.speed);
-        static_cast<Paddle*>(paddle.get())->setSize(sf::Vector2f(paddleState.sizeX, paddleState.sizeY));
-
-        const auto& blockStates = memento->getBlocks();
-        if (blocks.size() != blockStates.size()) {
-            blocks.clear();
-            for (const auto& state : blockStates) {
-                sf::Color color(state.colorR, state.colorG, state.colorB);
-
-                if (state.isIndestructible) {
-                    auto block = std::make_unique<IndestructibleBlock>(state.x, state.y);
-                    blocks.push_back(std::move(block));
-                }
-                else if (state.isGlass) {
-                    auto block = std::make_unique<GlassBlock>(state.x, state.y);
-                    if (!state.isActive) {
-                        static_cast<GlassBlock*>(block.get())->destroy();
-                    }
-                    blocks.push_back(std::move(block));
-                }
-                else if (state.hitsRemaining > 1) {
-                    auto block = std::make_unique<StrongBlock>(state.x, state.y, color, state.hitsRemaining);
-                    if (!state.isActive) {
-                        static_cast<StrongBlock*>(block.get())->setHitsRemaining(0);
-                    }
-                    blocks.push_back(std::move(block));
-                }
-                else {
-                    auto block = std::make_unique<Block>(state.x, state.y, color);
-                    if (!state.isActive) {
-                        static_cast<Block*>(block.get())->destroy();
-                    }
-                    blocks.push_back(std::move(block));
-                }
-            }
-        }
-        else {
-            for (size_t i = 0; i < blocks.size(); ++i) {
-                blocks[i]->setPosition(blockStates[i].x, blockStates[i].y);
-
-                if (blockStates[i].isIndestructible) {
-                    continue;
-                }
-
-                sf::Color color(blockStates[i].colorR, blockStates[i].colorG, blockStates[i].colorB);
-
-                if (blockStates[i].isGlass) {
-                    auto newBlock = std::make_unique<GlassBlock>(blockStates[i].x, blockStates[i].y);
-                    if (!blockStates[i].isActive) {
-                        newBlock->destroy();
-                    }
-                    blocks[i] = std::move(newBlock);
-                }
-                else if (blockStates[i].hitsRemaining > 1) {
-                    auto newBlock = std::make_unique<StrongBlock>(
-                        blockStates[i].x, blockStates[i].y,
-                        color, blockStates[i].hitsRemaining
-                    );
-                    if (!blockStates[i].isActive) {
-                        newBlock->setHitsRemaining(0);
-                    }
-                    blocks[i] = std::move(newBlock);
-                }
-                else if (blockStates[i].isActive) {
-                    auto* strongBlock = dynamic_cast<StrongBlock*>(blocks[i].get());
-                    if (strongBlock) {
-                        strongBlock->setHitsRemaining(blockStates[i].hitsRemaining);
-                    }
-                    else {
-                        auto* blockPtr = static_cast<Block*>(blocks[i].get());
-                        if (!blockPtr->isAlive()) {
-                            auto newBlock = std::make_unique<Block>(
-                                blockStates[i].x, blockStates[i].y, color
-                            );
-                            blocks[i] = std::move(newBlock);
-                        }
-                    }
-                }
-                else {
-                    auto* blockPtr = static_cast<Block*>(blocks[i].get());
-                    if (blockPtr->isAlive()) {
-                        blockPtr->destroy();
-                    }
-                }
-            }
-        }
-
-        bonuses.clear();
-        const auto& bonusStates = memento->getBonuses();
-        for (const auto& bonusState : bonusStates) {
-            if (bonusState.isActive) {
-                auto newBonus = std::make_unique<Bonus>(
-                    bonusState.x, bonusState.y,
-                    static_cast<Bonus::Type>(bonusState.type)
-                );
-                bonuses.push_back(std::move(newBonus));
-            }
-        }
-
-        activeEffects.clear();
         const auto& effectStates = memento->getActiveEffects();
         for (const auto& effectState : effectStates) {
-            std::unique_ptr<IBonusEffect> effect;
-            switch (effectState.type) {
-            case 0: effect = std::make_unique<FireBallEffect>(); break;
-            case 1: effect = std::make_unique<FragileBlocksEffect>(); break;
-            case 2: effect = std::make_unique<PaddleSizeEffect>(effectState.multiplier); break;
-            case 3: effect = std::make_unique<PaddleSizeEffect>(effectState.multiplier); break;
-            case 4: effect = std::make_unique<PaddleSpeedEffect>(effectState.multiplier); break;
-            case 5: effect = std::make_unique<PaddleSpeedEffect>(effectState.multiplier); break;
-            }
-
+            auto effect = createEffectFromState(effectState);
             if (effect) {
                 effect->restoreState(effectState.elapsedTime);
-
-                if (effectState.type == 0) {
-                    auto* fireEffect = dynamic_cast<FireBallEffect*>(effect.get());
-                    if (fireEffect) {
-                        fireEffect->setBaseSpeed(ballState.speed);
-                    }
-                }
-
-                if (effectState.type == 1) {
-                    auto* fragileEffect = dynamic_cast<FragileBlocksEffect*>(effect.get());
-                    if (fragileEffect && !effectState.affectedBlocks.empty()) {
-                        std::vector<std::pair<StrongBlock*, int>> restoredBlocks;
-                        for (const auto& info : effectState.affectedBlocks) {
-                            if (info.blockIndex >= 0 && info.blockIndex < static_cast<int>(blocks.size())) {
-                                auto* strongBlock = dynamic_cast<StrongBlock*>(blocks[info.blockIndex].get());
-                                if (strongBlock) {
-                                    restoredBlocks.push_back({ strongBlock, info.originalHits });
-                                }
-                            }
-                        }
-                        fragileEffect->setAffectedBlocks(restoredBlocks);
-                    }
-                }
-
                 activeEffects.push_back({ std::move(effect), effectState.elapsedTime });
             }
         }
+
+        updateBlockVisuals();
 
         saveSystem.clearSave();
     }
@@ -845,7 +790,8 @@ namespace Arcanoid {
                 else if (!paused && musicEnabled && music.getStatus() != sf::Music::Playing) music.play();
             }
             if (event.key.code == sf::Keyboard::S && !paused) {
-                saveSystem.saveGame(score, lives, blocks, ball.get(), paddle.get(), bonuses, activeEffects);
+                saveSystem.saveGame(score, lives, static_cast<int>(currentDifficulty),
+                    blocks, ball.get(), paddle.get(), bonuses, activeEffects);
                 showSaveMessageText("Game Saved!");
             }
             break;
@@ -891,7 +837,8 @@ namespace Arcanoid {
                 if (musicEnabled && music.getStatus() != sf::Music::Playing) music.play();
             }
             else if (pauseSelection == 1) {
-                saveSystem.saveGame(score, lives, blocks, ball.get(), paddle.get(), bonuses, activeEffects);
+                saveSystem.saveGame(score, lives, static_cast<int>(currentDifficulty),
+                    blocks, ball.get(), paddle.get(), bonuses, activeEffects);
                 showSaveMessageText("Game Saved!");
             }
             else {

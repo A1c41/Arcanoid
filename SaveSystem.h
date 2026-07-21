@@ -12,24 +12,32 @@ namespace Arcanoid {
     class GameMemento {
     public:
         struct BlockState {
-            float x, y;
+            float x;
+            float y;
             bool isActive;
             int hitsRemaining;
-            bool isGlass;
-            bool isIndestructible;
+            enum BlockType { NORMAL, STRONG, GLASS, INDESTRUCTIBLE } type;
             int colorR, colorG, colorB;
+
+            BlockState() : x(0), y(0), isActive(true), hitsRemaining(0),
+                type(NORMAL), colorR(255), colorG(255), colorB(255) {
+            }
         };
 
         struct BallState {
             float x, y;
             float vx, vy;
             float speed;
+
+            BallState() : x(0), y(0), vx(0), vy(0), speed(0) {}
         };
 
         struct PaddleState {
             float x, y;
             float speed;
             float sizeX, sizeY;
+
+            PaddleState() : x(0), y(0), speed(0), sizeX(0), sizeY(0) {}
         };
 
         struct BonusState {
@@ -37,11 +45,15 @@ namespace Arcanoid {
             int type;
             float remainingTime;
             bool isActive;
+
+            BonusState() : x(0), y(0), type(0), remainingTime(0), isActive(false) {}
         };
 
         struct AffectedBlockInfo {
             int blockIndex;
             int originalHits;
+
+            AffectedBlockInfo() : blockIndex(-1), originalHits(0) {}
         };
 
         struct ActiveEffectState {
@@ -49,11 +61,14 @@ namespace Arcanoid {
             float elapsedTime;
             float multiplier;
             std::vector<AffectedBlockInfo> affectedBlocks;
+
+            ActiveEffectState() : type(0), elapsedTime(0), multiplier(1.0f) {}
         };
 
     private:
         int score;
         int lives;
+        int difficulty;
         std::vector<BlockState> blocks;
         BallState ballState;
         PaddleState paddleState;
@@ -63,7 +78,7 @@ namespace Arcanoid {
     public:
         GameMemento();
 
-        void saveState(int score_, int lives_,
+        void saveState(int score_, int lives_, int difficulty_,
             const std::vector<std::unique_ptr<GameObject>>& blocks_,
             const GameObject* ball_,
             const GameObject* paddle_,
@@ -72,6 +87,7 @@ namespace Arcanoid {
 
         int getScore() const;
         int getLives() const;
+        int getDifficulty() const;
         const std::vector<BlockState>& getBlocks() const;
         const BallState& getBall() const;
         const PaddleState& getPaddle() const;
@@ -80,6 +96,7 @@ namespace Arcanoid {
 
         void setScore(int s) { score = s; }
         void setLives(int l) { lives = l; }
+        void setDifficulty(int d) { difficulty = d; }
         void setBlocks(const std::vector<BlockState>& b) { blocks = b; }
         void setBall(const BallState& b) { ballState = b; }
         void setPaddle(const PaddleState& p) { paddleState = p; }
@@ -99,7 +116,7 @@ namespace Arcanoid {
         SaveSystem();
         ~SaveSystem();
 
-        void saveGame(int score, int lives,
+        void saveGame(int score, int lives, int difficulty,
             const std::vector<std::unique_ptr<GameObject>>& blocks,
             const GameObject* ball,
             const GameObject* paddle,

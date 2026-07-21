@@ -21,6 +21,7 @@ namespace Arcanoid {
         if (file.is_open()) {
             std::string line;
             while (std::getline(file, line)) {
+                if (line.empty()) continue;
                 std::istringstream iss(line);
                 int score;
                 std::string date;
