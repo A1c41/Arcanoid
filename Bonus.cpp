@@ -12,14 +12,12 @@
 namespace Arcanoid {
 
     FireBallEffect::FireBallEffect() : duration(8.0f), elapsedTime(0.0f),
-        isActive(false), speedMultiplier(1.5f) {
+        isActive(false), speedMultiplier(1.5f), originalSpeed(400.f) {
     }
 
     void FireBallEffect::apply(Paddle* paddle, Ball* ball, std::vector<std::unique_ptr<GameObject>>& blocks) {
         if (ball && !isActive) {
-            float currentSpeed = ball->getSpeed();
-            originalSpeed = currentSpeed;
-            ball->setSpeed(currentSpeed * speedMultiplier);
+            ball->setSpeed(originalSpeed * speedMultiplier);
             isActive = true;
         }
         elapsedTime = 0.0f;
