@@ -18,11 +18,12 @@ namespace Arcanoid {
             bool isActive;
             int hitsRemaining;
             int maxHits;
+            int originalHitsRemaining;
             enum BlockType { NORMAL, STRONG, GLASS, INDESTRUCTIBLE } type;
             int colorR, colorG, colorB;
 
             BlockState() : x(0), y(0), isActive(true), hitsRemaining(0),
-                maxHits(0), type(NORMAL), colorR(255), colorG(255), colorB(255) {
+                maxHits(0), originalHitsRemaining(0), type(NORMAL), colorR(255), colorG(255), colorB(255) {
             }
         };
 
@@ -30,16 +31,19 @@ namespace Arcanoid {
             float x, y;
             float vx, vy;
             float speed;
+            float baseSpeed;
 
-            BallState() : x(0), y(0), vx(0), vy(0), speed(0) {}
+            BallState() : x(0), y(0), vx(0), vy(0), speed(0), baseSpeed(0) {}
         };
 
         struct PaddleState {
             float x, y;
             float speed;
+            float baseSpeed;
             float sizeX, sizeY;
+            float baseWidth, baseHeight;
 
-            PaddleState() : x(0), y(0), speed(0), sizeX(0), sizeY(0) {}
+            PaddleState() : x(0), y(0), speed(0), baseSpeed(0), sizeX(0), sizeY(0), baseWidth(0), baseHeight(0) {}
         };
 
         struct BonusState {
@@ -58,6 +62,15 @@ namespace Arcanoid {
             ActiveEffectState() : type(0), elapsedTime(0), multiplier(1.0f) {}
         };
 
+        struct FragileBlockState {
+            float x;
+            float y;
+            int originalHits;
+
+            FragileBlockState() : x(0), y(0), originalHits(0) {}
+            FragileBlockState(float x_, float y_, int hits) : x(x_), y(y_), originalHits(hits) {}
+        };
+
     private:
         int score;
         int lives;
@@ -67,6 +80,7 @@ namespace Arcanoid {
         PaddleState paddleState;
         std::vector<BonusState> bonuses;
         std::vector<ActiveEffectState> activeEffects;
+        std::vector<FragileBlockState> fragileBlocks;
 
     public:
         GameMemento();
@@ -86,6 +100,7 @@ namespace Arcanoid {
         const PaddleState& getPaddle() const;
         const std::vector<BonusState>& getBonuses() const;
         const std::vector<ActiveEffectState>& getActiveEffects() const;
+        const std::vector<FragileBlockState>& getFragileBlocks() const;
 
         void setScore(int s) { score = s; }
         void setLives(int l) { lives = l; }
@@ -95,6 +110,7 @@ namespace Arcanoid {
         void setPaddle(const PaddleState& p) { paddleState = p; }
         void setBonuses(const std::vector<BonusState>& b) { bonuses = b; }
         void setActiveEffects(const std::vector<ActiveEffectState>& a) { activeEffects = a; }
+        void setFragileBlocks(const std::vector<FragileBlockState>& f) { fragileBlocks = f; }
     };
 
     class SaveSystem {

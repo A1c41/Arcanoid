@@ -138,12 +138,15 @@ namespace Arcanoid {
         const auto& ballState = memento->getBall();
         ballPtr->setPosition(ballState.x, ballState.y);
         ballPtr->setVelocity({ ballState.vx, ballState.vy });
-        ballPtr->setSpeed(ballState.speed);
+        ballPtr->setBaseSpeed(ballState.baseSpeed);
+        ballPtr->setSpeed(ballState.baseSpeed);
 
         const auto& paddleState = memento->getPaddle();
         paddle->setPosition(paddleState.x, paddleState.y);
-        static_cast<Paddle*>(paddle.get())->setSpeed(paddleState.speed);
-        static_cast<Paddle*>(paddle.get())->setSize(sf::Vector2f(paddleState.sizeX, paddleState.sizeY));
+        auto* paddlePtr = static_cast<Paddle*>(paddle.get());
+        paddlePtr->setBaseSpeed(paddleState.baseSpeed);
+        paddlePtr->setSpeed(paddleState.baseSpeed);
+        paddlePtr->setSize(sf::Vector2f(paddleState.baseWidth, paddleState.baseHeight));
 
         blocks.clear();
         const auto& blockStates = memento->getBlocks();
@@ -164,7 +167,7 @@ namespace Arcanoid {
             case GameMemento::BlockState::STRONG:
                 block = std::make_unique<StrongBlock>(state.x, state.y, color, state.maxHits);
                 if (state.isActive) {
-                    static_cast<StrongBlock*>(block.get())->setHitsRemaining(state.hitsRemaining);
+                    static_cast<StrongBlock*>(block.get())->setHitsRemaining(state.originalHitsRemaining);
                     static_cast<StrongBlock*>(block.get())->updateAppearance();
                 }
                 else {
@@ -211,6 +214,20 @@ namespace Arcanoid {
             case 1: {
                 auto fragileEffect = std::make_unique<FragileBlocksEffect>();
                 fragileEffect->restoreState(effectState.elapsedTime);
+
+                const auto& fragileBlocks = memento->getFragileBlocks();
+                for (const auto& fb : fragileBlocks) {
+                    for (auto& block : blocks) {
+                        auto* strongBlock = dynamic_cast<StrongBlock*>(block.get());
+                        if (strongBlock && strongBlock->isAlive()) {
+                            sf::Vector2f pos = block->getPosition();
+                            if (std::abs(pos.x - fb.x) < 0.5f && std::abs(pos.y - fb.y) < 0.5f) {
+                                fragileEffect->addAffectedBlock(strongBlock, fb.originalHits);
+                                break;
+                            }
+                        }
+                    }
+                }
                 effect = std::move(fragileEffect);
                 break;
             }

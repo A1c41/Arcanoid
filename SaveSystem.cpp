@@ -31,6 +31,7 @@ namespace Arcanoid {
             state.isActive = true;
             state.hitsRemaining = 0;
             state.maxHits = 0;
+            state.originalHitsRemaining = 0;
             state.type = BlockState::NORMAL;
             state.colorR = 255;
             state.colorG = 255;
@@ -66,6 +67,7 @@ namespace Arcanoid {
                 state.isActive = strongBlock->isAlive();
                 state.hitsRemaining = strongBlock->getHitsRemaining();
                 state.maxHits = strongBlock->getMaxHits();
+                state.originalHitsRemaining = state.hitsRemaining;
                 sf::Color color = strongBlock->getColor();
                 state.colorR = color.r;
                 state.colorG = color.g;
@@ -95,6 +97,7 @@ namespace Arcanoid {
                 ballState.vx = ball->getVelocity().x;
                 ballState.vy = ball->getVelocity().y;
                 ballState.speed = ball->getSpeed();
+                ballState.baseSpeed = ball->getBaseSpeed();
             }
         }
 
@@ -106,6 +109,9 @@ namespace Arcanoid {
             auto* paddle = dynamic_cast<const Paddle*>(paddle_);
             if (paddle) {
                 paddleState.speed = paddle->getSpeed();
+                paddleState.baseSpeed = paddle->getBaseSpeed();
+                paddleState.baseWidth = paddle->getBaseWidth();
+                paddleState.baseHeight = paddle->getBaseHeight();
             }
         }
 
@@ -122,12 +128,26 @@ namespace Arcanoid {
         }
 
         activeEffects.clear();
+        fragileBlocks.clear();
+
         for (const auto& effect : activeEffects_) {
             ActiveEffectState state;
             state.type = effect.first->getType();
             state.elapsedTime = effect.second;
             state.multiplier = effect.first->getMultiplier();
             activeEffects.push_back(state);
+
+            auto* fragileEffect = dynamic_cast<FragileBlocksEffect*>(effect.first.get());
+            if (fragileEffect && fragileEffect->isAppliedState()) {
+                const auto& affected = fragileEffect->getAffectedBlocks();
+                for (const auto& blockPair : affected) {
+                    StrongBlock* strongBlock = blockPair.first;
+                    if (strongBlock && strongBlock->isAlive()) {
+                        sf::Vector2f pos = strongBlock->getPosition();
+                        fragileBlocks.push_back(FragileBlockState(pos.x, pos.y, blockPair.second));
+                    }
+                }
+            }
         }
     }
 
@@ -139,6 +159,7 @@ namespace Arcanoid {
     const GameMemento::PaddleState& GameMemento::getPaddle() const { return paddleState; }
     const std::vector<GameMemento::BonusState>& GameMemento::getBonuses() const { return bonuses; }
     const std::vector<GameMemento::ActiveEffectState>& GameMemento::getActiveEffects() const { return activeEffects; }
+    const std::vector<GameMemento::FragileBlockState>& GameMemento::getFragileBlocks() const { return fragileBlocks; }
 
     SaveSystem::SaveSystem() {
         saveFile = RESOURCES + "save.dat";
@@ -226,6 +247,13 @@ namespace Arcanoid {
             file.write(reinterpret_cast<const char*>(&multiplier), sizeof(float));
         }
 
+        std::vector<GameMemento::FragileBlockState> fragileBlocks = save->getFragileBlocks();
+        size_t fragileCount = fragileBlocks.size();
+        file.write(reinterpret_cast<const char*>(&fragileCount), sizeof(size_t));
+        for (const auto& fb : fragileBlocks) {
+            file.write(reinterpret_cast<const char*>(&fb), sizeof(GameMemento::FragileBlockState));
+        }
+
         file.close();
     }
 
@@ -295,6 +323,16 @@ namespace Arcanoid {
                 activeEffects.push_back(effect);
             }
             save->setActiveEffects(activeEffects);
+
+            size_t fragileCount;
+            file.read(reinterpret_cast<char*>(&fragileCount), sizeof(size_t));
+            std::vector<GameMemento::FragileBlockState> fragileBlocks;
+            for (size_t i = 0; i < fragileCount; ++i) {
+                GameMemento::FragileBlockState fb;
+                file.read(reinterpret_cast<char*>(&fb), sizeof(GameMemento::FragileBlockState));
+                fragileBlocks.push_back(fb);
+            }
+            save->setFragileBlocks(fragileBlocks);
 
             file.close();
         }

@@ -32,6 +32,7 @@ namespace Arcanoid {
         void reflectY() { velocity.y = -velocity.y; }
         float getSpeed() const { return speed; }
         float getBaseSpeed() const { return baseSpeed; }
+        void setBaseSpeed(float bs) { baseSpeed = bs; }
     };
 
 }

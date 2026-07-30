@@ -12,12 +12,12 @@
 namespace Arcanoid {
 
     FireBallEffect::FireBallEffect() : duration(8.0f), elapsedTime(0.0f),
-        isActive(false), speedMultiplier(1.5f), originalSpeed(400.f) {
+        isActive(false), speedMultiplier(1.5f) {
     }
 
     void FireBallEffect::apply(Paddle* paddle, Ball* ball, std::vector<std::unique_ptr<GameObject>>& blocks) {
         if (ball && !isActive) {
-            ball->setSpeed(originalSpeed * speedMultiplier);
+            ball->setSpeed(ball->getBaseSpeed() * speedMultiplier);
             isActive = true;
         }
         elapsedTime = 0.0f;
@@ -25,7 +25,7 @@ namespace Arcanoid {
 
     void FireBallEffect::remove(Paddle* paddle, Ball* ball, std::vector<std::unique_ptr<GameObject>>& blocks) {
         if (ball && isActive) {
-            ball->setSpeed(originalSpeed);
+            ball->setSpeed(ball->getBaseSpeed());
             isActive = false;
             elapsedTime = 0.0f;
         }
@@ -45,12 +45,13 @@ namespace Arcanoid {
 
     void FragileBlocksEffect::apply(Paddle* paddle, Ball* ball, std::vector<std::unique_ptr<GameObject>>& blocks) {
         if (!isApplied) {
+            affectedBlocks.clear();
             for (auto& block : blocks) {
                 auto* strongBlock = dynamic_cast<StrongBlock*>(block.get());
                 if (strongBlock && strongBlock->isAlive()) {
-                    int originalHits = strongBlock->getHitsRemaining();
-                    if (originalHits > 1) {
-                        affectedBlocks.push_back({ strongBlock, originalHits });
+                    int currentHits = strongBlock->getHitsRemaining();
+                    if (currentHits > 1) {
+                        affectedBlocks.push_back({ strongBlock, currentHits });
                         strongBlock->setHitsRemaining(1);
                         strongBlock->updateAppearance();
                     }
@@ -77,6 +78,20 @@ namespace Arcanoid {
         }
     }
 
+    void FragileBlocksEffect::addAffectedBlock(StrongBlock* block, int originalHits) {
+        if (block && block->isAlive()) {
+            for (const auto& affected : affectedBlocks) {
+                if (affected.first == block) {
+                    return;
+                }
+            }
+            affectedBlocks.push_back({ block, originalHits });
+            block->setHitsRemaining(1);
+            block->updateAppearance();
+            isApplied = true;
+        }
+    }
+
     float FragileBlocksEffect::getDuration() const { return duration; }
     sf::Color FragileBlocksEffect::getColor() const { return sf::Color(100, 255, 100); }
     int FragileBlocksEffect::getType() const { return 1; }
@@ -94,8 +109,9 @@ namespace Arcanoid {
 
     void PaddleSizeEffect::apply(Paddle* paddle, Ball* ball, std::vector<std::unique_ptr<GameObject>>& blocks) {
         if (paddle && !isApplied) {
-            originalSize = paddle->getSize();
-            sf::Vector2f newSize(originalSize.x * sizeMultiplier, originalSize.y);
+            float currentWidth = paddle->getSize().x;
+            float baseHeight = paddle->getBaseHeight();
+            sf::Vector2f newSize(currentWidth * sizeMultiplier, baseHeight);
             paddle->setSize(newSize);
             isApplied = true;
         }
@@ -104,7 +120,22 @@ namespace Arcanoid {
 
     void PaddleSizeEffect::remove(Paddle* paddle, Ball* ball, std::vector<std::unique_ptr<GameObject>>& blocks) {
         if (paddle && isApplied) {
-            paddle->setSize(originalSize);
+            float currentWidth = paddle->getSize().x;
+            float baseHeight = paddle->getBaseHeight();
+            float newWidth = currentWidth / sizeMultiplier;
+            float baseWidth = paddle->getBaseWidth();
+            if (newWidth < baseWidth && sizeMultiplier > 1.0f) newWidth = baseWidth;
+            if (newWidth > baseWidth && sizeMultiplier < 1.0f) newWidth = baseWidth;
+
+            bool hasOppositeEffect = false;
+            if (sizeMultiplier > 1.0f) {
+                for (auto& block : blocks) {
+                    (void)block;
+                }
+            }
+
+            sf::Vector2f newSize(newWidth, baseHeight);
+            paddle->setSize(newSize);
             isApplied = false;
             elapsedTime = 0.0f;
         }
@@ -128,8 +159,8 @@ namespace Arcanoid {
 
     void PaddleSpeedEffect::apply(Paddle* paddle, Ball* ball, std::vector<std::unique_ptr<GameObject>>& blocks) {
         if (paddle && !isApplied) {
-            originalSpeed = paddle->getSpeed();
-            paddle->setSpeed(originalSpeed * speedMultiplier);
+            float currentSpeed = paddle->getSpeed();
+            paddle->setSpeed(currentSpeed * speedMultiplier);
             isApplied = true;
         }
         elapsedTime = 0.0f;
@@ -137,7 +168,12 @@ namespace Arcanoid {
 
     void PaddleSpeedEffect::remove(Paddle* paddle, Ball* ball, std::vector<std::unique_ptr<GameObject>>& blocks) {
         if (paddle && isApplied) {
-            paddle->setSpeed(originalSpeed);
+            float currentSpeed = paddle->getSpeed();
+            float newSpeed = currentSpeed / speedMultiplier;
+            float baseSpeed = paddle->getBaseSpeed();
+            if (newSpeed < baseSpeed && speedMultiplier > 1.0f) newSpeed = baseSpeed;
+            if (newSpeed > baseSpeed && speedMultiplier < 1.0f) newSpeed = baseSpeed;
+            paddle->setSpeed(newSpeed);
             isApplied = false;
             elapsedTime = 0.0f;
         }

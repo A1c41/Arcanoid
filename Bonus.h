@@ -34,7 +34,6 @@ namespace Arcanoid {
         float elapsedTime;
         bool isActive;
         float speedMultiplier;
-        float originalSpeed;
 
     public:
         FireBallEffect();
@@ -67,6 +66,10 @@ namespace Arcanoid {
         void restoreState(float elapsedTime) override;
         float getElapsedTime() const override;
         void reset() override;
+
+        void addAffectedBlock(StrongBlock* block, int originalHits);
+        const std::vector<std::pair<StrongBlock*, int>>& getAffectedBlocks() const { return affectedBlocks; }
+        bool isAppliedState() const { return isApplied; }
     };
 
     class PaddleSizeEffect : public IBonusEffect {
@@ -75,7 +78,6 @@ namespace Arcanoid {
         float elapsedTime;
         float sizeMultiplier;
         bool isApplied;
-        sf::Vector2f originalSize;
 
     public:
         PaddleSizeEffect(float multiplier);
@@ -96,7 +98,6 @@ namespace Arcanoid {
         float elapsedTime;
         float speedMultiplier;
         bool isApplied;
-        float originalSpeed;
 
     public:
         PaddleSpeedEffect(float multiplier);

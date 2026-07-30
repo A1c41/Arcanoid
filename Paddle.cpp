@@ -2,7 +2,7 @@
 
 namespace Arcanoid {
 
-    Paddle::Paddle() : speed(350.0f), moveLeft(false), moveRight(false), baseWidth(120.0f), baseHeight(22.0f) {
+    Paddle::Paddle() : speed(DEFAULT_SPEED), baseSpeed(DEFAULT_SPEED), moveLeft(false), moveRight(false), baseWidth(DEFAULT_WIDTH), baseHeight(DEFAULT_HEIGHT) {
         size = sf::Vector2f(baseWidth, baseHeight);
         position = sf::Vector2f(WINDOW_WIDTH / 2.0f - size.x / 2, WINDOW_HEIGHT - 50.0f);
 
